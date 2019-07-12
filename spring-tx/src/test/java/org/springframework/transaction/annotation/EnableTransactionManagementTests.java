@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +16,7 @@
 
 package org.springframework.transaction.annotation;
 
+import java.util.Collection;
 import java.util.Map;
 
 import org.junit.Test;
@@ -34,17 +35,17 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.stereotype.Service;
 import org.springframework.tests.transaction.CallCountingTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.AnnotationTransactionNamespaceHandlerTests.TransactionalTestBean;
 import org.springframework.transaction.config.TransactionManagementConfigUtils;
 import org.springframework.transaction.event.TransactionalEventListenerFactory;
 
-import static org.hamcrest.CoreMatchers.*;
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Tests demonstrating use of @EnableTransactionManagement @Configuration classes.
  *
  * @author Chris Beams
+ * @author Juergen Hoeller
  * @author Stephane Nicoll
  * @author Sam Brannen
  * @since 3.1
@@ -56,9 +57,9 @@ public class EnableTransactionManagementTests {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(
 				EnableTxConfig.class, TxManagerConfig.class);
 		TransactionalTestBean bean = ctx.getBean(TransactionalTestBean.class);
-		assertTrue("testBean is not a proxy", AopUtils.isAopProxy(bean));
+		assertThat(AopUtils.isAopProxy(bean)).as("testBean is not a proxy").isTrue();
 		Map<?,?> services = ctx.getBeansWithAnnotation(Service.class);
-		assertTrue("Stereotype annotation not visible", services.containsKey("testBean"));
+		assertThat(services.containsKey("testBean")).as("Stereotype annotation not visible").isTrue();
 		ctx.close();
 	}
 
@@ -67,9 +68,9 @@ public class EnableTransactionManagementTests {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(
 				InheritedEnableTxConfig.class, TxManagerConfig.class);
 		TransactionalTestBean bean = ctx.getBean(TransactionalTestBean.class);
-		assertTrue("testBean is not a proxy", AopUtils.isAopProxy(bean));
+		assertThat(AopUtils.isAopProxy(bean)).as("testBean is not a proxy").isTrue();
 		Map<?,?> services = ctx.getBeansWithAnnotation(Service.class);
-		assertTrue("Stereotype annotation not visible", services.containsKey("testBean"));
+		assertThat(services.containsKey("testBean")).as("Stereotype annotation not visible").isTrue();
 		ctx.close();
 	}
 
@@ -78,9 +79,9 @@ public class EnableTransactionManagementTests {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(
 				ParentEnableTxConfig.class, ChildEnableTxConfig.class, TxManagerConfig.class);
 		TransactionalTestBean bean = ctx.getBean(TransactionalTestBean.class);
-		assertTrue("testBean is not a proxy", AopUtils.isAopProxy(bean));
+		assertThat(AopUtils.isAopProxy(bean)).as("testBean is not a proxy").isTrue();
 		Map<?,?> services = ctx.getBeansWithAnnotation(Service.class);
-		assertTrue("Stereotype annotation not visible", services.containsKey("testBean"));
+		assertThat(services.containsKey("testBean")).as("Stereotype annotation not visible").isTrue();
 		ctx.close();
 	}
 
@@ -113,41 +114,86 @@ public class EnableTransactionManagementTests {
 	@Test
 	@SuppressWarnings("resource")
 	public void proxyTypeAspectJCausesRegistrationOfAnnotationTransactionAspect() {
-		try {
-			new AnnotationConfigApplicationContext(EnableAspectjTxConfig.class, TxManagerConfig.class);
-			fail("should have thrown CNFE when trying to load AnnotationTransactionAspect. " +
-					"Do you actually have org.springframework.aspects on the classpath?");
-		}
-		catch (Exception ex) {
-			assertThat(ex.getMessage(), containsString("AspectJTransactionManagementConfiguration"));
-		}
+		// should throw CNFE when trying to load AnnotationTransactionAspect.
+		// Do you actually have org.springframework.aspects on the classpath?
+		assertThatExceptionOfType(Exception.class).isThrownBy(() ->
+				new AnnotationConfigApplicationContext(EnableAspectjTxConfig.class, TxManagerConfig.class))
+			.withMessageContaining("AspectJJtaTransactionManagementConfiguration");
 	}
 
 	@Test
 	public void transactionalEventListenerRegisteredProperly() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(EnableTxConfig.class);
-		assertTrue(ctx.containsBean(TransactionManagementConfigUtils.TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME));
-		assertEquals(1, ctx.getBeansOfType(TransactionalEventListenerFactory.class).size());
+		assertThat(ctx.containsBean(TransactionManagementConfigUtils.TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME)).isTrue();
+		assertThat(ctx.getBeansOfType(TransactionalEventListenerFactory.class).size()).isEqualTo(1);
 		ctx.close();
 	}
 
 	@Test
-	public void spr11915() {
+	public void spr11915TransactionManagerAsManualSingleton() {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(Spr11915Config.class);
 		TransactionalTestBean bean = ctx.getBean(TransactionalTestBean.class);
 		CallCountingTransactionManager txManager = ctx.getBean("qualifiedTransactionManager", CallCountingTransactionManager.class);
 
 		bean.saveQualifiedFoo();
-		assertThat(txManager.begun, equalTo(1));
-		assertThat(txManager.commits, equalTo(1));
-		assertThat(txManager.rollbacks, equalTo(0));
+		assertThat(txManager.begun).isEqualTo(1);
+		assertThat(txManager.commits).isEqualTo(1);
+		assertThat(txManager.rollbacks).isEqualTo(0);
 
 		bean.saveQualifiedFooWithAttributeAlias();
-		assertThat(txManager.begun, equalTo(2));
-		assertThat(txManager.commits, equalTo(2));
-		assertThat(txManager.rollbacks, equalTo(0));
+		assertThat(txManager.begun).isEqualTo(2);
+		assertThat(txManager.commits).isEqualTo(2);
+		assertThat(txManager.rollbacks).isEqualTo(0);
 
 		ctx.close();
+	}
+
+	@Test
+	public void spr14322FindsOnInterfaceWithInterfaceProxy() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(Spr14322ConfigA.class);
+		TransactionalTestInterface bean = ctx.getBean(TransactionalTestInterface.class);
+		CallCountingTransactionManager txManager = ctx.getBean(CallCountingTransactionManager.class);
+
+		bean.saveFoo();
+		bean.saveBar();
+		assertThat(txManager.begun).isEqualTo(2);
+		assertThat(txManager.commits).isEqualTo(2);
+		assertThat(txManager.rollbacks).isEqualTo(0);
+
+		ctx.close();
+	}
+
+	@Test
+	public void spr14322FindsOnInterfaceWithCglibProxy() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(Spr14322ConfigB.class);
+		TransactionalTestInterface bean = ctx.getBean(TransactionalTestInterface.class);
+		CallCountingTransactionManager txManager = ctx.getBean(CallCountingTransactionManager.class);
+
+		bean.saveFoo();
+		bean.saveBar();
+		assertThat(txManager.begun).isEqualTo(2);
+		assertThat(txManager.commits).isEqualTo(2);
+		assertThat(txManager.rollbacks).isEqualTo(0);
+
+		ctx.close();
+	}
+
+
+	@Service
+	public static class TransactionalTestBean {
+
+		@Transactional(readOnly = true)
+		public Collection<?> findAllFoos() {
+			return null;
+		}
+
+		@Transactional("qualifiedTransactionManager")
+		public void saveQualifiedFoo() {
+		}
+
+		@Transactional(transactionManager = "qualifiedTransactionManager")
+		public void saveQualifiedFooWithAttributeAlias() {
+		}
 	}
 
 
@@ -205,23 +251,6 @@ public class EnableTransactionManagementTests {
 
 
 	@Configuration
-	@EnableTransactionManagement
-	static class Spr11915Config {
-
-		@Autowired
-		public void initializeApp(ConfigurableApplicationContext applicationContext) {
-			applicationContext.getBeanFactory().registerSingleton(
-					"qualifiedTransactionManager", new CallCountingTransactionManager());
-		}
-
-		@Bean
-		public TransactionalTestBean testBean() {
-			return new TransactionalTestBean();
-		}
-	}
-
-
-	@Configuration
 	static class TxManagerConfig {
 
 		@Bean
@@ -247,6 +276,79 @@ public class EnableTransactionManagementTests {
 		@Override
 		public PlatformTransactionManager annotationDrivenTransactionManager() {
 			return txManager2();
+		}
+	}
+
+
+	@Configuration
+	@EnableTransactionManagement
+	static class Spr11915Config {
+
+		@Autowired
+		public void initializeApp(ConfigurableApplicationContext applicationContext) {
+			applicationContext.getBeanFactory().registerSingleton(
+					"qualifiedTransactionManager", new CallCountingTransactionManager());
+		}
+
+		@Bean
+		public TransactionalTestBean testBean() {
+			return new TransactionalTestBean();
+		}
+	}
+
+
+	public interface BaseTransactionalInterface {
+
+		@Transactional
+		default void saveBar() {
+		}
+	}
+
+
+	public interface TransactionalTestInterface extends BaseTransactionalInterface {
+
+		@Transactional
+		void saveFoo();
+	}
+
+
+	@Service
+	public static class TransactionalTestService implements TransactionalTestInterface {
+
+		@Override
+		public void saveFoo() {
+		}
+	}
+
+
+	@Configuration
+	@EnableTransactionManagement
+	static class Spr14322ConfigA {
+
+		@Bean
+		public TransactionalTestInterface testBean() {
+			return new TransactionalTestService();
+		}
+
+		@Bean
+		public PlatformTransactionManager txManager() {
+			return new CallCountingTransactionManager();
+		}
+	}
+
+
+	@Configuration
+	@EnableTransactionManagement(proxyTargetClass = true)
+	static class Spr14322ConfigB {
+
+		@Bean
+		public TransactionalTestInterface testBean() {
+			return new TransactionalTestService();
+		}
+
+		@Bean
+		public PlatformTransactionManager txManager() {
+			return new CallCountingTransactionManager();
 		}
 	}
 

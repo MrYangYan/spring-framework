@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,11 +18,12 @@ package org.springframework.context.annotation;
 
 import java.util.function.Supplier;
 
-import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
+import org.springframework.beans.factory.config.BeanDefinitionCustomizer;
 import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -38,10 +39,10 @@ import org.springframework.util.Assert;
  * deliberately override certain bean definitions via an extra {@code @Configuration}
  * class.
  *
- * <p>See @{@link Configuration} Javadoc for usage examples.
+ * <p>See @{@link Configuration}'s javadoc for usage examples.
  *
- * @author Chris Beams
  * @author Juergen Hoeller
+ * @author Chris Beams
  * @since 3.0
  * @see #register
  * @see #scan
@@ -100,9 +101,8 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 
 
 	/**
-	 * {@inheritDoc}
-	 * <p>Delegates given environment to underlying {@link AnnotatedBeanDefinitionReader}
-	 * and {@link ClassPathBeanDefinitionScanner} members.
+	 * Propagates the given custom {@code Environment} to the underlying
+	 * {@link AnnotatedBeanDefinitionReader} and {@link ClassPathBeanDefinitionScanner}.
 	 */
 	@Override
 	public void setEnvironment(ConfigurableEnvironment environment) {
@@ -136,12 +136,6 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 	public void setScopeMetadataResolver(ScopeMetadataResolver scopeMetadataResolver) {
 		this.reader.setScopeMetadataResolver(scopeMetadataResolver);
 		this.scanner.setScopeMetadataResolver(scopeMetadataResolver);
-	}
-
-	@Override
-	protected void prepareRefresh() {
-		this.scanner.clearCache();
-		super.prepareRefresh();
 	}
 
 
@@ -178,77 +172,14 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
 
 
 	//---------------------------------------------------------------------
-	// Convenient methods for registering individual beans
+	// Adapt superclass registerBean calls to AnnotatedBeanDefinitionReader
 	//---------------------------------------------------------------------
 
-	/**
-	 * Register a bean from the given bean class, deriving its metadata from
-	 * class-declared annotations, using the given supplier for obtaining a new
-	 * instance (possibly declared as a lambda expression or method reference).
-	 * <p>The bean name will be generated according to annotated component rules.
-	 * @param annotatedClass the class of the bean
-	 * @param instanceSupplier a callback for creating an instance of the bean
-	 * @since 5.0
-	 * @see #setBeanNameGenerator
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> void registerBean(Class<T> annotatedClass, Supplier<T> instanceSupplier) {
-		registerBean(null, annotatedClass, instanceSupplier);
-	}
+	@Override
+	public <T> void registerBean(@Nullable String beanName, Class<T> beanClass,
+			@Nullable Supplier<T> supplier, BeanDefinitionCustomizer... customizers) {
 
-	/**
-	 * Register a bean from the given bean class, deriving its metadata from
-	 * class-declared annotations, using the given supplier for obtaining a new
-	 * instance (possibly declared as a lambda expression or method reference).
-	 * @param beanName the name of the bean (may be {@code null})
-	 * @param annotatedClass the class of the bean
-	 * @param instanceSupplier a callback for creating an instance of the bean
-	 * @since 5.0
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> void registerBean(String beanName, Class<T> annotatedClass, Supplier<T> instanceSupplier) {
-		Assert.notNull(instanceSupplier, "Supplier must not be null");
-		this.reader.registerBean(annotatedClass, instanceSupplier, beanName);
-	}
-
-	/**
-	 * Register a bean from the given bean class, deriving its metadata from
-	 * class-declared annotations, and optionally providing explicit constructor
-	 * arguments for consideration in the autowiring process.
-	 * <p>The bean name will be generated according to annotated component rules.
-	 * @param annotatedClass the class of the bean
-	 * @param constructorArguments argument values to be fed into Spring's
-	 * constructor resolution algorithm, resolving either all arguments or just
-	 * specific ones, with the rest to be resolved through regular autowiring
-	 * (may be {@code null} or empty)
-	 * @since 5.0
-	 * @see #setBeanNameGenerator
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> void registerBean(Class<T> annotatedClass, Object... constructorArguments) {
-		registerBean(null, annotatedClass, constructorArguments);
-	}
-
-	/**
-	 * Register a bean from the given bean class, deriving its metadata from
-	 * class-declared annotations, and optionally providing explicit constructor
-	 * arguments for consideration in the autowiring process.
-	 * @param beanName the name of the bean (may be {@code null})
-	 * @param annotatedClass the class of the bean
-	 * @param constructorArguments argument values to be fed into Spring's
-	 * constructor resolution algorithm, resolving either all arguments or just
-	 * specific ones, with the rest to be resolved through regular autowiring
-	 * (may be {@code null} or empty)
-	 * @since 5.0
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> void registerBean(String beanName, Class<T> annotatedClass, Object... constructorArguments) {
-		AnnotatedBeanDefinition abd = this.reader.registerBean(annotatedClass, null, beanName);
-		if (constructorArguments != null) {
-			for (Object arg : constructorArguments) {
-				abd.getConstructorArgumentValues().addGenericArgumentValue(arg);
-			}
-		}
+		this.reader.registerBean(beanClass, beanName, supplier, customizers);
 	}
 
 }
